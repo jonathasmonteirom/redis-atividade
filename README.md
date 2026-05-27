@@ -28,24 +28,30 @@ A interface da aplicação está pronta faltando apenas a integração para que 
 pip install -r requirements.txt
 ```
 
-### 2. Configurar Redis
+### 2. Configurar Redis (arquivo `.env`)
 
-Configure a conexão Redis no arquivo `app.py`:
+Esta aplicação carrega variáveis de ambiente a partir de um arquivo local chamado `.env` (usando `python-dotenv`, já listado em `requirements.txt`). Crie um arquivo `.env` na raiz do projeto com a estrutura abaixo e substitua os valores fictícios pelos dados fornecidos no painel do Redis (host, port, username e password).
 
-```python
-redis_client = redis.Redis(
-    host='seu-host-redis',
-    port=6379,
-    decode_responses=True,
-    username='default',
-    password='sua-senha'
-)
+Exemplo de `.env` (APENAS LOCAL — NÃO COMMITAR):
+
+```ini
+# .env - exemplo local
+REDIS_HOST=redis-12345.c12.us-east-1-3.ec2.cloud.redislabs.com
+REDIS_PORT=19283
+REDIS_USERNAME=default
+REDIS_PASSWORD=Fictici0@Passw0rd
 ```
+
+No painel do Redis (ex.: Redis Cloud / Redis Labs) você encontrará os valores de **Host**, **Port**, **Username** (às vezes `default`) e **Password** — copie-os para o seu `.env`.
+
+Importante:
+- Este arquivo é local e contém credenciais; não versionar (adicione `/.env` em seu `.gitignore`).
+- `main.py` já carrega o `.env` automaticamente via `python-dotenv` — você não precisa alterar o código para usar essas variáveis.
 
 ### 3. Executar aplicativo
 
 ```bash
-python app.py
+python main.py
 ```
 
 O aplicativo estará disponível em `http://localhost:5001`
