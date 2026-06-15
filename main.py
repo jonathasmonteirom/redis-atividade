@@ -7,9 +7,8 @@ import uuid
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here-56549819'
+app.config['SECRET_KEY'] = 'jonathas'
 
-# Carrega as variáveis do arquivo .env
 load_dotenv()
 
 redis_client = redis.Redis(
@@ -89,8 +88,10 @@ def toggle_task(task_id):
     try:
         tasks = get_tasks()
         task_found = False
+        safe_task_id = str(task_id).strip()
+        
         for task in tasks:
-            if task['id'] == task_id:
+            if str(task.get('id', '')).strip() == safe_task_id:
                 task['completed'] = not task['completed']
                 task_found = True
                 break
@@ -109,7 +110,9 @@ def delete_task(task_id):
     try:
         tasks = get_tasks()
         initial_len = len(tasks)
-        tasks = [task for task in tasks if task['id'] != task_id]
+        safe_task_id = str(task_id).strip()
+        
+        tasks = [task for task in tasks if str(task.get('id', '')).strip() != safe_task_id]
         
         if len(tasks) == initial_len:
             return jsonify({'success': False, 'error': 'Tarefa não encontrada'}), 404
@@ -154,6 +157,11 @@ def reorder_tasks():
             'success': False,
             'error': str(e)
         }), 500
+    
+@app.route('/reset')
+def reset_db():
+    redis_client.delete(TASKS_KEY)
+    return "Banco de dados limpo com sucesso."
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
