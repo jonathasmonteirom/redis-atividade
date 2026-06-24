@@ -7,7 +7,7 @@ import uuid
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'jonathas'
+app.config['SECRET_KEY'] = 'your-secret-key-here-56549819'
 
 load_dotenv()
 
@@ -39,16 +39,22 @@ def save_tasks(tasks):
         print(f"Erro ao salvar tarefas no Redis: {e}")
         return False
 
+def get_pending_count():
+    """Contar tarefas pendentes"""
+    tasks = get_tasks()
+    return len([task for task in tasks if not task['completed']])
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/api/tasks', methods=['GET'])
 def api_get_tasks():
+    """API para buscar todas as tarefas"""
     try:
         tasks = get_tasks()
         tasks.sort(key=lambda x: x.get('order', 0))
-        pending_count = len([task for task in tasks if not task['completed']])
+        pending_count = get_pending_count()
         
         return jsonify({
             'success': True,
@@ -56,85 +62,117 @@ def api_get_tasks():
             'pending_count': pending_count
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/tasks', methods=['POST'])
-def add_task():
+def api_add_task():
+    """API para adicionar nova tarefa"""
     try:
-        data = request.json
+        data = request.get_json()
         text = data.get('text', '').strip()
+        
         if not text:
-            return jsonify({'success': False, 'error': 'O texto da tarefa não pode ser vazio'}), 400
+            return jsonify({
+                'success': False,
+                'error': 'Texto da tarefa é obrigatório'
+            }), 400
         
         tasks = get_tasks()
         
         new_task = {
-            "id": str(uuid.uuid4()),
-            "text": text,
-            "completed": False,
-            "order": len(tasks),
-            "created_at": datetime.now().isoformat()
+            'id': str(uuid.uuid4()),
+            'text': text,
+            'completed': False,
+            'order': len(tasks),
+            'created_at': datetime.now().isoformat()
         }
         
         tasks.append(new_task)
+        
         if save_tasks(tasks):
-            return jsonify({'success': True, 'task': new_task})
-        return jsonify({'success': False, 'error': 'Erro ao salvar tarefa'}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/tasks/<task_id>/toggle', methods=['PUT'])
-def toggle_task(task_id):
-    try:
-        tasks = get_tasks()
-        task_found = False
-        safe_task_id = str(task_id).strip()
-        
-        for task in tasks:
-            if str(task.get('id', '')).strip() == safe_task_id:
-                task['completed'] = not task['completed']
-                task_found = True
-                break
-        
-        if not task_found:
-            return jsonify({'success': False, 'error': 'Tarefa não encontrada'}), 404
+            return jsonify({
+                'success': True,
+                'task': new_task
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Erro ao salvar tarefa - Redis não implementado'
+            }), 500
             
-        if save_tasks(tasks):
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Erro ao atualizar status'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/tasks/<task_id>', methods=['DELETE'])
-def delete_task(task_id):
+def api_delete_task(task_id):
+    """API para remover tarefa"""
     try:
         tasks = get_tasks()
-        initial_len = len(tasks)
-        safe_task_id = str(task_id).strip()
+        tasks = [task for task in tasks if task['id'] != task_id]
         
-        tasks = [task for task in tasks if str(task.get('id', '')).strip() != safe_task_id]
-        
-        if len(tasks) == initial_len:
-            return jsonify({'success': False, 'error': 'Tarefa não encontrada'}), 404
-        
-        for i, task in enumerate(tasks):
-            task['order'] = i
-            
         if save_tasks(tasks):
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Erro ao remover tarefa'}), 500
+            return jsonify({
+                'success': True,
+                'message': 'Tarefa removida com sucesso'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Erro ao remover tarefa - Redis não implementado'
+            }), 500
+            
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/tasks/<task_id>/toggle', methods=['PUT'])
+def api_toggle_task(task_id):
+    """API para marcar/desmarcar tarefa como concluída"""
+    try:
+        tasks = get_tasks()
+        
+        for task in tasks:
+            if task['id'] == task_id:
+                task['completed'] = not task['completed']
+                break
+        
+        if save_tasks(tasks):
+            return jsonify({
+                'success': True,
+                'message': 'Status da tarefa atualizado'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Erro ao atualizar tarefa - Redis não implementado'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/tasks/reorder', methods=['PUT'])
-def reorder_tasks():
+def api_reorder_tasks():
+    """API para reordenar tarefas (drag and drop)"""
     try:
-        task_ids = request.json.get('task_ids', [])
+        data = request.get_json()
+        task_ids = data.get('task_ids', [])
+        
         tasks = get_tasks()
         
         task_map = {task['id']: task for task in tasks}
-        reordered_tasks = []
         
+        reordered_tasks = []
         for i, task_id in enumerate(task_ids):
             if task_id in task_map:
                 task = task_map[task_id]
@@ -149,7 +187,7 @@ def reorder_tasks():
         else:
             return jsonify({
                 'success': False,
-                'error': 'Erro ao reordenar tarefas'
+                'error': 'Erro ao reordenar tarefas - Redis não implementado'
             }), 500
             
     except Exception as e:
@@ -157,11 +195,6 @@ def reorder_tasks():
             'success': False,
             'error': str(e)
         }), 500
-    
-@app.route('/reset')
-def reset_db():
-    redis_client.delete(TASKS_KEY)
-    return "Banco de dados limpo com sucesso."
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
